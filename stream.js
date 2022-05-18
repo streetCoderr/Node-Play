@@ -15,16 +15,21 @@ console.log(args);
 
 const BASEPATH = path.resolve(process.env.BASEPATH || __dirname);
 let OUTPATH = path.join(BASEPATH, "out.txt");
+main().catch(error);
 
-if (args.help || process.argv.length <= 2) error(null, true);
-else if (args._.includes('-') || args.in) capitalize(process.stdin);
-else if (args.file) {
-  let outStream = fs.createReadStream(path.resolve(BASEPATH, args.file));
-  capitalize(outStream);
-  console.log("Complete!!!");
+async function main() {
+  if (args.help || process.argv.length <= 2) error(null, true);
+  else if (args._.includes('-') || args.in) {
+    await capitalize(process.stdin);
+    console.log("Complete!!!");
+  }
+  else if (args.file) {
+    let outStream = fs.createReadStream(path.resolve(BASEPATH, args.file));
+    await capitalize(outStream);
+    console.log("Complete!!!");
+  }
+  else error("Usage Incorrect", true);
 }
-else error("Usage Incorrect", true);
-
 
 function error(err, showHelp = false) {
   if (err) console.error(err);
@@ -32,8 +37,7 @@ function error(err, showHelp = false) {
   if (showHelp) renderHelp();
 }
 
-
-function capitalize(inputStream) {
+async function capitalize(inputStream) {
   var stream = inputStream;
   
   let upperCaseStream = new Transform(
@@ -44,6 +48,8 @@ function capitalize(inputStream) {
       }
     }
   );
+  stream = stream.pipe(upperCaseStream);
+
   let targetStream;
   if (args.compress) {
     OUTPATH = `${OUTPATH}.gz`;
@@ -53,7 +59,15 @@ function capitalize(inputStream) {
   if (args.out) targetStream = process.stdout;
   else targetStream = fs.createWriteStream(OUTPATH);
 
-  stream.pipe(upperCaseStream).pipe(targetStream);
+  stream.pipe(targetStream);
+
+  await streamComplete(stream);
+}
+
+function streamComplete(stream) {
+  return new Promise(function c(res) {
+    stream.on("end", res);
+  })
 }
 
 function renderHelp() {
